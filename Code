@@ -1,0 +1,98 @@
+#Instalar pacotes necessários
+#install.packages("sp")
+#install.packages("raster")
+#install.packages("caret")
+
+#Carregar 
+library(sp)
+library(raster)
+library(caret)
+
+
+## DADOS DE SOLO
+# Importar dados de solo do arquivo 'dados_solo.csv'que estão na pasta 'mds-r'
+dados <- read.csv("C:/mds-r/dados_solo.csv", sep = ",", na.strings = c("#N/A", "#N/D"))
+
+#Substituir N/A
+dados_solo <- na.omit(dados)
+
+# Visualizar as primeiras linhas do conjunto de dados
+head(dados)
+View(dados)
+
+# No objeto 'dados' a coluna 'coord_x' se refere a longitude e 'coord_y' a latitude
+coordinates(dados) <- ~coord_x + coord_y
+
+# Definir o CRS usando EPSG
+proj4string(dados) <- CRS("+init=epsg:31982")
+
+# Conferir se os dados estão espaciais:
+str(dados)
+
+# Visualizar os dados
+plot(dados)
+
+## Análise dos dados de solo
+# Resumo estatístico
+summary(dados@data$profundidade)
+#histograma de frequência
+hist(dados@data$profundidade, main = "Histograma de Profundidade do Solo", xlab = "Profundidade (cm)")
+
+## COVARIÁVEIS
+# Importar as covariáveis
+elevacao <- raster("covariaveis/ELEV.tif")
+#declividade <- raster("covariaveis/SL.tif")
+#topo_index <- raster("covariaveis/TWI.tif")
+#dis_drenagem <- raster("covariaveis/CNBL.tif")
+
+plot(elevacao, main ="Mapa de elevacao (m)")
+
+#ou 
+
+files <- list.files(path = "covariaveis", pattern = "tif$",
+                    full.names = TRUE)
+
+covariaveis <- stack(files)
+
+
+# Extrair valores de cada covariável nos pontos
+#dados$elevacao <- extract(x = elevacao, y = dados, sp = TRUE)
+#dados$declividade <- extract(x = SL, y = dados, sp = TRUE)
+#dados$topo_index <- extract(x = TWI, y = dados, sp = TRUE)
+#dados$dis_drenagem <- extract(x = CNBL, y = dados, sp = TRUE)
+
+#ou 
+
+dados <- extract(x = covariaveis, y = dados, sp = TRUE)
+
+
+#Veja a matriz de treinamento
+head(dados@data)
+
+##################################################################
+### MAPA DE PROFUNDIDADE
+
+#Formula
+formula = as.formula(paste("profundidade ~", paste0(names(covariaveis), 
+                                                    collapse = "+")))
+
+# treinando o modelo
+ctrl <- trainControl(method = "cv", savePred=T)
+rfmodel <- train(formula, data=dados@data, method = "rf", trControl = ctrl,
+                 importance=TRUE)
+
+#visualizando o modelo
+rfmodel
+
+#predição espacial
+mapa <- predict(covariaveis, rfmodel)
+plot(mapa, main ="Mapa de profundidade (cm)")
+
+# Savar o mapa com tif
+writeRaster(mapa, filename = "resultados/mapa_profundidade.tif",
+            overwrite=TRUE)
+
+#####################################################
+
+espessura_a 
+
